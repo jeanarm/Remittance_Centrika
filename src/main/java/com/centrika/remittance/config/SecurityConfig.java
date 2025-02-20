@@ -14,6 +14,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.ForwardedHeaderFilter;
 
 import java.util.List;
 
@@ -27,11 +28,11 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable()) // ✅ Disable CSRF for API calls
-                .cors(cors -> cors.configurationSource(corsConfigurationSource())) // ✅ Enable CORS for external access
+                .csrf(csrf -> csrf.disable()) // ✅ Disable CSRF for APIs
+                .cors(cors -> cors.configurationSource(corsConfigurationSource())) // ✅ Enable CORS
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/user/register", "/api/user/verify", "/api/user/set-password", "/api/user/login").permitAll() // ✅ Allow public endpoints
-                        .anyRequest().authenticated() // ✅ Protect other routes
+                        .requestMatchers("/api/user/register", "/api/user/verify", "/api/user/set-password", "/api/user/login").permitAll() // ✅ Allow external requests
+                        .anyRequest().authenticated() // ✅ Protect all other routes
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // ✅ Stateless JWT
                 .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class); // ✅ Add JWT filter
@@ -44,7 +45,13 @@ public class SecurityConfig {
         return authConfig.getAuthenticationManager();
     }
 
-    // ✅ Enable CORS for external requests
+    // ✅ Fix Spring Security rejecting `ngrok` HTTPS requests
+    @Bean
+    public ForwardedHeaderFilter forwardedHeaderFilter() {
+        return new ForwardedHeaderFilter();
+    }
+
+    // ✅ Properly configure CORS to allow ngrok requests
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
