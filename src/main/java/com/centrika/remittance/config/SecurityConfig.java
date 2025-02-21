@@ -31,7 +31,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable()) // ✅ Disable CSRF for APIs
                 .cors(cors -> cors.configurationSource(corsConfigurationSource())) // ✅ Enable CORS
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/user/register", "/api/user/verify", "/api/user/set-password", "/api/user/login").permitAll() // ✅ Allow external requests
+                        .requestMatchers("/api/user/register", "/api/user/verify", "/api/user/set-password", "/api/user/login","api/user/login/initiate","/api/user/login/complete","api/user/forgot-password","api/user/reset-password").permitAll() // ✅ Allow external requests
                         .anyRequest().authenticated() // ✅ Protect all other routes
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // ✅ Stateless JWT

@@ -37,4 +37,6 @@ public class User {
     private boolean isVerified;
     private String otpCode;
     private LocalDateTime otpExpiryTime;
+    private String resetToken;
+    private LocalDateTime resetTokenExpiry;
 }
