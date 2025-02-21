@@ -1,15 +1,11 @@
 package com.centrika.remittance.controller;
 
-import com.centrika.remittance.dto.RegisterUserRequest;
-import com.centrika.remittance.dto.VerifyOtpRequest;
-import com.centrika.remittance.dto.SetPasswordRequest;
+import com.centrika.remittance.dto.*;
 import com.centrika.remittance.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import com.centrika.remittance.dto.UserResponse;
-import com.centrika.remittance.dto.LoginRequest;
-import com.centrika.remittance.dto.LoginResponse;
+
 @RestController
 @RequestMapping("/api/user")
 @RequiredArgsConstructor
@@ -22,8 +18,7 @@ public class UserController {
      */
     @PostMapping("/register")
     public ResponseEntity<UserResponse> registerUser(@RequestBody RegisterUserRequest request) {
-        UserResponse response = userService.registerUser(request);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(userService.registerUser(request));
     }
 
     /**
@@ -31,8 +26,7 @@ public class UserController {
      */
     @PostMapping("/verify")
     public ResponseEntity<UserResponse> verifyOtp(@RequestBody VerifyOtpRequest request) {
-        UserResponse response  =userService.verifyOtp(request);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(userService.verifyOtp(request));
     }
 
     /**
@@ -40,13 +34,38 @@ public class UserController {
      */
     @PostMapping("/set-password")
     public ResponseEntity<UserResponse> setPassword(@RequestBody SetPasswordRequest request) {
-        UserResponse response = userService.setPassword(request);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(userService.setPassword(request));
     }
 
-    @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
-        LoginResponse response = userService.login(request);
-        return ResponseEntity.ok(response);
+    /**
+     * Step 4: Initiate Login (2FA - Send OTP)
+     */
+    @PostMapping("/login/initiate")
+    public ResponseEntity<UserResponse> initiateLogin(@RequestBody LoginRequest request) {
+        return ResponseEntity.ok(userService.initiateLogin(request));
+    }
+
+    /**
+     * Step 5: Complete Login (Verify OTP & Generate JWT)
+     */
+    @PostMapping("/login/complete")
+    public ResponseEntity<LoginResponse> completeLogin(@RequestBody VerifyOtpRequest request) {
+        return ResponseEntity.ok(userService.completeLogin(request));
+    }
+
+    /**
+     * Step 6: Forgot Password - Send Reset Token
+     */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<UserResponse> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        return ResponseEntity.ok(userService.forgotPassword(request));
+    }
+
+    /**
+     * Step 7: Reset Password
+     */
+    @PostMapping("/reset-password")
+    public ResponseEntity<UserResponse> resetPassword(@RequestBody ResetPasswordRequest request) {
+        return ResponseEntity.ok(userService.resetPassword(request));
     }
 }

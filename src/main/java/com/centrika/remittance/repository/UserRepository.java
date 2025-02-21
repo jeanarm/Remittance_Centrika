@@ -21,4 +21,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Transactional
     @Query("SELECT u FROM User u WHERE u.email = :email AND u.isVerified = true")
     Optional<User> findVerifiedUser(String email);
+
+    @Transactional
+    Optional<User> findByResetToken(String resetToken);
 }
