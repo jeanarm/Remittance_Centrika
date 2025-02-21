@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.authentication.BadCredentialsException;
 import com.centrika.remittance.dto.LoginRequest;
 import com.centrika.remittance.dto.LoginResponse;
+import com.centrika.remittance.exception.ValidationExceptionHandler;
 @Service
 @RequiredArgsConstructor
 public class UserService {
@@ -34,11 +35,11 @@ public class UserService {
     @Transactional
     public UserResponse registerUser(RegisterUserRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new IllegalStateException("Email already registered!");
+            throw new ValidationExceptionHandler("Email already exists!");
         }
 
         Role role = roleRepository.findByName("Business_Owner")
-                .orElseThrow(() -> new IllegalStateException("Default role not found!"));
+                .orElseThrow(() -> new ValidationExceptionHandler("Default role not found!"));
 
         User user = User.builder()
                 .fullName(request.getFullName())
@@ -59,7 +60,7 @@ public class UserService {
      */
     public UserResponse verifyOtp(VerifyOtpRequest request) {
         User user = userRepository.findValidOtpUser(request.getEmail(), request.getOtpCode())
-                .orElseThrow(() -> new IllegalStateException("Invalid OTP or expired!"));
+                .orElseThrow(() -> new ValidationExceptionHandler("Invalid OTP or expired!"));
 
         user.setVerified(true);
         user.setOtpCode(null);
@@ -73,11 +74,27 @@ public class UserService {
      * Step 3: Set Password
      */
     public UserResponse setPassword(SetPasswordRequest request) {
-        User user = userRepository.findVerifiedUser(request.getEmail())
-                .orElseThrow(() -> new IllegalStateException("User is not verified!"));
+        // Validate password and confirm password match
+        if (!request.getPassword().equals(request.getConfirmPassword())) {
+            throw new ValidationExceptionHandler("Passwords do not match!");
+        }
 
+        // Validate password: At least 8 characters, one uppercase, one lowercase, one number, and one special character
+        if (!request.getPassword().matches("^(?=.*[A-Z])(?=.*[a-z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$")) {
+            throw new ValidationExceptionHandler(
+                    "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character!"
+            );
+        }
+
+        // Find the verified user
+        User user = userRepository.findVerifiedUser(request.getEmail())
+                .orElseThrow(() -> new ValidationExceptionHandler("User is not verified!"));
+
+        // Hash and set the password
         user.setPassword(PasswordUtil.hashPassword(request.getPassword()));
-        User savedUser = userRepository.save(user);
+
+        // Save the user and return response
+        userRepository.save(user);
         return new UserResponse(user.getEmail(), "Password created successfully");
     }
 
@@ -101,10 +118,10 @@ public class UserService {
 
     public LoginResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
+                .orElseThrow(() -> new ValidationExceptionHandler("Invalid email or password"));
 
         if (!PasswordUtil.matches(request.getPassword(), user.getPassword())) {
-            throw new BadCredentialsException("Invalid email or password");
+            throw new ValidationExceptionHandler("Invalid email or password");
         }
 
         String token = jwtUtil.generateToken(user);

@@ -34,10 +34,7 @@ public class User {
     @OneToOne
     @JoinColumn(name = "role_id", nullable = false)
     private Role role;
-
     private boolean isVerified;
-
-    // OTP fields
     private String otpCode;
     private LocalDateTime otpExpiryTime;
 }
