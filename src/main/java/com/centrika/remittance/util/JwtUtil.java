@@ -1,12 +1,12 @@
 package com.centrika.remittance.util;
 
 import com.centrika.remittance.model.User;
-import io.jsonwebtoken.*;
-import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -15,14 +15,11 @@ import java.util.function.Function;
 @Component
 public class JwtUtil {
 
-    private final SecretKey secretKey;
-    private final long expirationTime;
+    @Value("${jwt.secret}")
+    private String secret;
 
-    public JwtUtil(@Value("${jwt.secret}") String secret,
-                   @Value("${jwt.expiration}") long expirationTime) {
-        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes()); // Fix secret encoding issue
-        this.expirationTime = expirationTime * 1000; // Ensure value is in milliseconds
-    }
+    @Value("${jwt.expiration}")
+    private long expirationTime;
 
     public String generateToken(User user) {
         Map<String, Object> claims = new HashMap<>();
@@ -33,7 +30,7 @@ public class JwtUtil {
                 .setSubject(user.getEmail())
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + expirationTime))
-                .signWith(secretKey, SignatureAlgorithm.HS256)
+                .signWith(SignatureAlgorithm.HS256, secret)
                 .compact();
     }
 
@@ -46,11 +43,8 @@ public class JwtUtil {
     }
 
     public boolean validateToken(String token, User user) {
-        try {
-            return extractEmail(token).equals(user.getEmail()) && !isTokenExpired(token);
-        } catch (JwtException | IllegalArgumentException e) {
-            return false; // Invalid or expired token
-        }
+        final String email = extractEmail(token);
+        return (email.equals(user.getEmail()) && !isTokenExpired(token));
     }
 
     private boolean isTokenExpired(String token) {
@@ -58,21 +52,14 @@ public class JwtUtil {
     }
 
     private <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        Claims claims = extractAllClaims(token);
+        final Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
     }
 
     private Claims extractAllClaims(String token) {
-        try {
-            return Jwts.parserBuilder()
-                    .setSigningKey(secretKey)
-                    .build()
-                    .parseClaimsJws(token)
-                    .getBody();
-        } catch (ExpiredJwtException e) {
-            throw new JwtException("Token has expired", e);
-        } catch (JwtException e) {
-            throw new JwtException("Invalid token", e);
-        }
+        return Jwts.parser()
+                .setSigningKey(secret)
+                .parseClaimsJws(token)
+                .getBody();
     }
 }
