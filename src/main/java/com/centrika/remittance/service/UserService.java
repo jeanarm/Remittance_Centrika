@@ -14,7 +14,9 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.centrika.remittance.model.PasswordResetToken;
+import com.centrika.remittance.service.mail.EmailService;
+import com.centrika.remittance.repository.PasswordResetTokenRepository;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -26,6 +28,8 @@ public class UserService {
     private final RoleRepository roleRepository;
     private final JavaMailSender mailSender;
     private final JwtUtil jwtUtil;
+    private final EmailService emailService;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Transactional
     public UserResponse registerUser(RegisterUserRequest request) {
@@ -99,42 +103,54 @@ public class UserService {
         return new LoginResponse(user.getEmail(), token);
     }
 
+    @Transactional
     public UserResponse forgotPassword(ForgotPasswordRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new ValidationExceptionHandler("User not found!"));
 
-        // ✅ Generate Reset Token and Expiry Time
+        // ✅ Generate a unique token
         String resetToken = UUID.randomUUID().toString();
-        user.setResetToken(resetToken);
-        user.setResetTokenExpiry(LocalDateTime.now().plusMinutes(60)); // Expires in 60 minutes
+        LocalDateTime expiryTime = LocalDateTime.now().plusMinutes(60); // Token valid for 60 minutes
 
-        // ✅ Save token in the database
-        userRepository.save(user);
+        // ✅ Remove old tokens
+        passwordResetTokenRepository.findByUser(user)
+                .ifPresent(passwordResetTokenRepository::delete);
 
-        // ✅ Send the password reset email
-        sendPasswordResetEmail(user.getEmail(), resetToken);
+        // ✅ Save new reset token
+        PasswordResetToken token = PasswordResetToken.builder()
+                .token(resetToken)
+                .expiryTime(expiryTime)
+                .user(user)
+                .build();
+        passwordResetTokenRepository.save(token);
+
+        // ✅ Send the email
+        emailService.sendPasswordResetEmail(user.getEmail(), resetToken);
 
         return new UserResponse(user.getEmail(), "Password reset token sent to email.");
     }
 
+    @Transactional
     public UserResponse resetPassword(ResetPasswordRequest request) {
-        User user = userRepository.findByResetToken(request.getResetToken())
+        PasswordResetToken token = passwordResetTokenRepository.findByToken(request.getResetToken())
                 .orElseThrow(() -> new ValidationExceptionHandler("Invalid or expired reset token!"));
 
         // ✅ Ensure token is not expired
-        if (user.getResetTokenExpiry().isBefore(LocalDateTime.now())) {
+        if (token.getExpiryTime().isBefore(LocalDateTime.now())) {
             throw new ValidationExceptionHandler("Reset token has expired!");
         }
 
         // ✅ Validate password
         validatePassword(request.getPassword(), request.getConfirmPassword());
 
-        // ✅ Update user's password and remove reset token
+        // ✅ Update user's password
+        User user = token.getUser();
         user.setPassword(PasswordUtil.hashPassword(request.getPassword()));
-        user.setResetToken(null); // Remove reset token after successful reset
-        user.setResetTokenExpiry(null);
-
         userRepository.save(user);
+
+        // ✅ Delete the token after successful reset
+        passwordResetTokenRepository.delete(token);
+
         return new UserResponse(user.getEmail(), "Password has been reset successfully.");
     }
     private void generateAndSendOTP(User user) {
@@ -143,16 +159,10 @@ public class UserService {
         user.setOtpExpiryTime(LocalDateTime.now().plusMinutes(60));
         userRepository.save(user);
 
-        sendOtpEmail(user.getEmail(), otpCode);
+        emailService.sendOtpEmail(user.getEmail(), otpCode);
     }
 
-    private void sendOtpEmail(String email, String otpCode) {
-        SimpleMailMessage mailMessage = new SimpleMailMessage();
-        mailMessage.setTo(email);
-        mailMessage.setSubject("Your OTP Code");
-        mailMessage.setText("Your OTP code is: " + otpCode);
-        mailSender.send(mailMessage);
-    }
+
     private void validatePassword(String password, String confirmPassword) {
         if (!password.equals(confirmPassword)) {
             throw new ValidationExceptionHandler("Passwords do not match!");
@@ -166,13 +176,6 @@ public class UserService {
         }
 
 }
-    private void sendPasswordResetEmail(String email, String resetToken) {
-        SimpleMailMessage mailMessage = new SimpleMailMessage();
-        mailMessage.setTo(email);
-        mailMessage.setSubject("Reset Your Password");
-        mailMessage.setText("Use this token to reset your password: " + resetToken + "\n\nThis token expires in 1h minutes.");
-        mailSender.send(mailMessage);
-    }
     private void validatePhoneNumber(String phoneNumber) {
         if (!phoneNumber.matches("\\d{9,}")) {
             throw new ValidationExceptionHandler("Phone number must contain only digits and be at least 9 characters long.");
